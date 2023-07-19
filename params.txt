@@ -8,7 +8,7 @@ FACTOR = 3
 
 [Player]
 ; Coordinates of the different sprites in the original sheet Rect(PLAYER_X, PLAYER_Y, PLAYER_WIDTH, PLAYER_HEIGHT)
-SPEED = 10
+SPEED = 1
 PLAYER_X = 3 
 PLAYER_Y = 49
 PLAYER_WIDTH = 13

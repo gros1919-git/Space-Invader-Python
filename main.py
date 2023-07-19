@@ -2,10 +2,12 @@
 
 import os
 import configparser
+import logging
+logging.basicConfig(level=logging.DEBUG)
 import pygame
 
 class TileSheet:
-    """ Class for selecting a signle or multiple sprite inside a sheet containing multiple sprite """
+    """ Class for selecting a single or multiple sprite inside a sheet containing multiple sprite """
 
     def __init__(self, fname, alpha=True, resize=True, new_W=0, new_H=0) -> None:
         self.fullImage = pygame.image.load(os.path.abspath(fname)) # loading the sheet
@@ -15,8 +17,6 @@ class TileSheet:
         self.fullImage = self.fullImage.convert() # Converting the Surface before it is blitted many times makes blitting faster.
         if alpha: # To work with sheet that have transparency
             self.fullImage = self.fullImage.convert_alpha() 
-
-        self.rectSheet = self.fullImage.get_rect() # The object we will use to blit from
 
         if resize:  # resizing sheet surface
             if new_W>0 and new_H>0: # protection
@@ -40,7 +40,7 @@ class TileSheet:
         self.changeColor(color)
         self.fullImage.blit(self.colorImage, (0,0), special_flags = pygame.BLEND_RGBA_MULT)
         pygame.Surface.blit(wind, self.fullImage, pos, area=_area)
-        # first arg = window, second arg = sheet surface, third arg = the position of the sprite in the window, area= the localisation of the sprite we want inside the sheet
+        # first arg = window, second arg = sheet surface, third arg = where we draw the sprite in the window, area= where the sprite is located inside the sheet
         # self.fullImage.blit does not work so it has to be pygame.Surface.blit
 
 class Object():
@@ -52,33 +52,33 @@ class Object():
         self.wind_res = wind_res # tuple containing width, height of the window we are displaying
 
         # Calculation the position and width / height of the object inside the resized sheet
-        self.posX, self.posY = basePosX * new_w / old_w, basePosY * new_h / old_h # this is to obtain posX in the resized sheet (different from where we need to blit in the window)
+        resised_posX, resised_posY = basePosX * new_w / old_w, basePosY * new_h / old_h # this is to obtain posX in the resized sheet (different from where we need to blit in the window)
         self.sx, self.sy = baseWidth * new_w / old_w, baseHeight * new_w / old_w # width and height of the sprite
-        self.rect_sprite = pygame.Rect(self.posX, self.posY, self.sx, self.sy) # the rect representing the area inside the resized sheet where the sprite of the object is located
-        self.posX, self.posY = objX_init, objY_init # position to blit the object in the window
+        self.posX, self.posY = objX_init, objY_init # position of the object initially in the window initially
+        self.rect_sprite = pygame.Rect(resised_posX, resised_posY, self.sx, self.sy) # the rect representing the area inside the resized sheet where the sprite of the object is located
+        self.rect_wind = pygame.Rect(self.getCenteredPos()[0], self.getCenteredPos()[1], self.sx, self.sy)
         self.color = color
 
     def getSize(self):
         return self.sx, self.sy
     
-    def getRect(self):
+    def getRectInSheet(self): # The area where the sprite is located inside the sheet
         return self.rect_sprite
+    
+    def getRectInScreen(self): # The area where the sprite is located inside the screen
+        return self.rect_wind
     
     def setPos(self, x, y):
         self.posX, self.posY = x, y
 
-    def getPos(self):
+    def getPos(self): # Get position on screen
         return self.posX, self.posY
  
+    def getCenteredPos(self): # Used for drawing
+        return self.posX - self.sx/2, self.posY - self.sy/2
+    
     def draw(self, tilesheet: TileSheet, wind: pygame.display) -> None: # drawing on a specific position the object in the window
-        tilesheet.blit(wind, pos=(self.getPos()[0] - self.sx/2, self.getPos()[1] - self.sy/2), _area=self.rect_sprite, color=self.color)
-
-    def draw_debugging(self, tilesheet: TileSheet, wind: pygame.display, rect) -> None: # drawing with a rect as a paramter
-        posX = rect.left
-        posY = rect.top
-        width = rect.width
-        height = rect.height
-        tilesheet.blit(wind, pos=(posX - width/2, posY - height/2), _area=rect, color=self.color)
+        tilesheet.blit(wind, pos=self.getCenteredPos(), _area=self.getRectInSheet(), color=self.color)
 
 class ObjectArray(): # Array of Object
     def __init__(self, basePosX, basePosY, baseWidth, baseHeight, color: pygame.Color, wind_res) -> None:
@@ -89,12 +89,20 @@ class ObjectArray(): # Array of Object
         self.baseHeight = baseHeight
         self.color = color
         self.wind_res = wind_res
+        self.rects_tab = [] # Rects of the obstacle inside the actual display window (used for collision)
 
     def add(self, sheet: TileSheet, objX_init, objY_init):
         self.tab.append(Object(sheet, self.basePosX, self.basePosY, self.baseWidth, self.baseHeight, self.color, self.wind_res, objX_init, objY_init))
+        self.rects_tab.append(self.tab[len(self.tab) - 1].getRectInScreen())
 
+    def getRects(self):
+        return self.rects_tab
+    
     def remove(self, obj):
         self.tab.pop(obj)
+
+    def print_debug(self):
+        logging.debug("ObjectArray:: Rects(left, top, w, h) = " + str(self.getRects()))
 
     def draw(self, tilesheet: TileSheet, wind: pygame.display):
         if len(self.tab) > 0:
@@ -106,19 +114,11 @@ class ObstacleArray(ObjectArray):
 
     def __init__(self, sheet: TileSheet, color: pygame.Color, wind_res) -> None:
         self.config = configparser.ConfigParser()
-        self.rects_tab = [] # Rects of the obstacle inside the actual display window
         self.initConfig()
         super().__init__(self.basePosX, self.basePosY, self.baseWidth, self.baseHeight, color, wind_res)
-        idxOBS = 1
         for i in range(0, 4):
-            self.add(sheet, idxOBS * self.wind_res[0]/5, (3.7/5)*self.wind_res[1])
-            idxOBS += 1
-            # Obtaining rects for the collision:
-            rect = pygame.Rect(self.tab[len(self.tab)-1].getPos()[0], self.tab[len(self.tab)-1].getPos()[1], self.tab[0].getSize()[0], self.tab[0].getSize()[1]) # self.tab[0] because all the objects inside self.tab are the same
-            self.rects_tab.append(rect)
-
-    def getRects(self):
-        return self.rects_tab
+            self.add(sheet, (i+1) * self.wind_res[0]/5, (3.7/5)*self.wind_res[1])
+        self.print_debug()
 
     def initConfig(self):
         self.config.read('params.txt')
@@ -128,32 +128,23 @@ class ObstacleArray(ObjectArray):
         self.baseWidth = int(self.config.get('Obstacles', 'OBS_WIDTH'))
         self.baseHeight = int(self.config.get('Obstacles', 'OBS_HEIGHT'))
 
-    def draw(self, tilesheet: TileSheet, wind: pygame.display): # Overload to debug the collision problem, the sprite of obstcles do not appear the same place as they should so getrects doesn't give the correct result
-        i = 0
-        if len(self.tab) > 0:
-            for obj in self.tab:
-                obj.draw_debugging(tilesheet, wind, self.rects_tab[i])
-                i += 1
-
 class LaserBeam(ObjectArray): # Laser beam object
     def __init__(self, basePosX, basePosY, baseWidth, baseHeight, color: pygame.Color, wind_res) -> None:
         super().__init__(basePosX, basePosY, baseWidth, baseHeight, color, wind_res)
 
-    def checkCollisions(self, rects_obs, point: tuple): # To add: also test collisions with aliens
+    def checkCollisions(self, point: tuple, rects_obs): # To add: also test collisions with aliens
         # Check for obstacles:
-        for r in rects_obs:
-            print("checking point collision " + str(point) + " with rect = " + str(r))
-            if r.collidepoint(point):
-                print("Collision with obstacle")
-                print("\n\n\n")
+        for r_obs in rects_obs:
+            if r_obs.collidepoint(point):
                 return True
-        print("\n\n\n")
+                # logging.debug("checkCollisions:: collision detected with point: " + str(point) + " and rect: " + str(r_obs))
         return False
-    
+
     def update(self, speed, rects_obs): # Modifying the position of the objects to display on screen and deleting the ones we don't need to draw anymore
         for obj in self.tab:
             if obj.getPos()[1] - speed >= 0: # We continue to move the laser shot until we touch something or we are out of the display
-                if not self.checkCollisions(rects_obs, (obj.getPos()[0], obj.getPos()[1] - speed)):
+                point = (obj.getPos()[0], obj.getPos()[1] - speed)
+                if not self.checkCollisions(point, rects_obs):
                     obj.setPos(obj.getPos()[0], obj.getPos()[1] - speed)
                 else: 
                     self.tab.remove(obj)
@@ -184,19 +175,16 @@ class Player(Object):
     def getSpeed(self):
         return self.speed
     
-    def getLaserRects(self):
-        return self.shots.getRects()
-
     def update(self, sheet, laser_beam_shot, rects_obs): # Update player position and laser beam position
         # Check key pressed to handle player movement & update player pos
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
-            if self.objX - self.sx - self.speed >= 0:
-                self.objX -= self.speed
+            if self.posX - self.sx - self.speed >= 0:
+                self.posX -= self.speed
 
         if keys[pygame.K_RIGHT]:
-            if self.objX + self.sx + self.speed < self.wind_res[0]:
-                self.objX += self.speed
+            if self.posX + self.sx + self.speed < self.wind_res[0]:
+                self.posX += self.speed
         
         if laser_beam_shot: # New shot
             self.shots.add(sheet, objX_init = self.getPos()[0], objY_init = self.getPos()[1] - 5)
@@ -260,12 +248,13 @@ class Game:
             self.player.update(self.sheet, shot_key_pressed, self.obs.getRects()) 
             shot_key_pressed = False # We shoot only when user press the space bar      
             self.player.draw(self.sheet, self.screen)
-            self.obs.draw(self.sheet, self.screen)
+            self.obs.draw(self.sheet, self.screen) 
+            pygame.draw.rect(self.screen, (255,0,0), pygame.Rect(224, 536, 88, 64)) # To debug if self.rect_tab is correctly created
 
             # flip() the display to put your work on screen
             pygame.display.flip()
 
-            self.clock.tick(5)  # limits FPS to 60
+            self.clock.tick(60)  # limits FPS to 60
 
         pygame.quit()
 
