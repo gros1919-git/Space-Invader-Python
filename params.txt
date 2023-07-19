@@ -1,0 +1,20 @@
+[Parameters]
+; Basic height and width to make an arcade-looking space invader similar to old times
+BASE_WIDTH = 224
+BASE_HEIGHT = 256
+
+; Factor is what we use to increase the overall size of the space invader window
+FACTOR = 3
+
+[Player]
+; Coordinates of the different sprites in the original sheet Rect(PLAYER_X, PLAYER_Y, PLAYER_WIDTH, PLAYER_HEIGHT)
+PLAYER_X = 3 
+PLAYER_Y = 49
+PLAYER_WIDTH = 13
+PLAYER_HEIGHT = 8
+
+[Obstacles]
+OBS_X = 46
+OBS_Y = 31
+OBS_WIDTH = 22
+OBS_HEIGHT = 16
