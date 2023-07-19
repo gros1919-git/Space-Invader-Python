@@ -8,13 +8,19 @@ FACTOR = 3
 
 [Player]
 ; Coordinates of the different sprites in the original sheet Rect(PLAYER_X, PLAYER_Y, PLAYER_WIDTH, PLAYER_HEIGHT)
+SPEED = 10
 PLAYER_X = 3 
 PLAYER_Y = 49
 PLAYER_WIDTH = 13
 PLAYER_HEIGHT = 8
+LASER_X = 55
+LASER_Y = 53
+LASER_WIDTH = 1
+LASER_HEIGHT = 4
 
 [Obstacles]
 OBS_X = 46
 OBS_Y = 31
 OBS_WIDTH = 22
 OBS_HEIGHT = 16
+
